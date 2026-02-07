@@ -14,7 +14,7 @@ To build the project from source, you need **CMake** and a **C++17 compiler** (v
 
 1.  **Clone the repository**:
     ```powershell
-    git clone <repository_url>
+    git clone https://github.com/AmmarAlasad/SyncOrSink.git
     cd SyncOrSink
     ```
 
