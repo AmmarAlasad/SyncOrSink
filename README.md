@@ -1,61 +1,36 @@
-# SyncOrSink
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-A 2D cooperative multiplayer game built with C++ and WebRTC.
+## Getting Started
 
-## 🚀 Current Status (MVP)
-The game is currently in a **Minimum Viable Product** state.
-- **Networking**: Peer-to-Peer connection established via Game ID.
-- **Signaling**: Uses `ntfy.sh` as a public relay (Serverless!).
-- **Gameplay**: Basic movement synchronization (WASD).
-- **Platform**: Windows.
+First, run the development server:
 
-## 🛠️ Build Instructions
-To build the project from source, you need **CMake** and a **C++17 compiler** (visual Studio recommended).
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
 
-1.  **Clone the repository**:
-    ```powershell
-    git clone https://github.com/AmmarAlasad/SyncOrSink.git
-    cd SyncOrSink
-    ```
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-2.  **Generate Build Files**:
-    ```powershell
-    cmake -B build
-    ```
-    *Note: This will automatically download dependencies (raylib, libdatachannel, json).*
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-3.  **Compile**:
-    ```powershell
-    cmake --build build
-    ```
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-4.  **Run**:
-    The executable is located in `build/bin/`.
-    ```powershell
-    .\build\bin\SyncOrSink.exe
-    ```
+## Learn More
 
-## 🎮 How to Play
-You can play over the local network or the Internet!
+To learn more about Next.js, take a look at the following resources:
 
-**Host:**
-1.  Run the game.
-2.  Press **'H'** to Host.
-3.  Note the **4-digit Game ID** (e.g., `1234`).
-4.  Share it with your friend.
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-**Join:**
-1.  Run the game.
-2.  Press **'J'** to Join.
-3.  Type the **Game ID** and press **ENTER**.
-4.  Wait for the connection message.
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-**Controls:**
-- **WASD / Arrow Keys**: Move.
+## Deploy on Vercel
 
-## 🔮 Future Roadmap
-- [ ] **Installer**: Easy-to-use installer for non-developers.
-- [ ] **Game Mechanics**: Cooperative puzzles, physics interactions.
-- [ ] **Visuals**: Animated sprites, particle effects, polished UI.
-- [ ] **Lobby System**: Detailed lobby with ready check.
-- [ ] **Audio**: Sound effects and background music.
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
