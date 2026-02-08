@@ -7,6 +7,7 @@ export type Player = {
     name: string;
     isHost: boolean;
     peerId: string;
+    color: string;
     position?: { x: number; y: number };
 };
 
@@ -92,6 +93,7 @@ export const useStore = create<AppState>()(
                             name: state.localPlayer.name,
                             isHost: true,
                             peerId: hostPeerId,
+                            color: '#6366f1', // Indigo for host
                         }],
                     },
                     lastJoinedLobby: { id: id, hostPeerId }
@@ -115,7 +117,14 @@ export const useStore = create<AppState>()(
                     newPlayers[existingPlayerIndex] = player;
                     return { lobby: { ...state.lobby, players: newPlayers } };
                 }
-                return { lobby: { ...state.lobby, players: [...state.lobby.players, player] } };
+
+                // Assign a color if not provided
+                const colors = ['#10b981', '#f59e0b', '#ef4444', '#ec4899', '#8b5cf6', '#06b6d4', '#f97316'];
+                const usedColors = state.lobby.players.map(p => p.color);
+                const availableColor = colors.find(c => !usedColors.includes(c)) || colors[0];
+                const playerWithColor = { ...player, color: player.color || availableColor };
+
+                return { lobby: { ...state.lobby, players: [...state.lobby.players, playerWithColor] } };
             }),
 
             removePlayer: (playerId) => set((state) => ({
@@ -148,13 +157,7 @@ export const useStore = create<AppState>()(
         {
             name: 'syncorsink-storage',
             partialize: (state) => ({
-                localPlayer: {
-                    id: state.localPlayer.id,
-                    name: state.localPlayer.name,
-                    peerId: null
-                },
                 settings: state.settings,
-                lastJoinedLobby: state.lastJoinedLobby
             }),
         }
     )

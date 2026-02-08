@@ -25,6 +25,7 @@ export const PeerProvider = ({ children }: { children: React.ReactNode }) => {
     const [connections, setConnections] = useState<DataConnection[]>([]);
     const { localPlayer, setLocalPeerId, addPlayer, removePlayer, updatePlayerPosition, setGameStatus, setCollection, resetLobby, lobby, lastJoinedLobby } = useStore();
     const connectionsRef = useRef<DataConnection[]>([]);
+    const peerToPlayerId = useRef<Record<string, string>>({});
 
     useEffect(() => {
         // Initialize Peer
@@ -53,13 +54,25 @@ export const PeerProvider = ({ children }: { children: React.ReactNode }) => {
 
             conn.on('close', () => {
                 console.log('Connection closed:', conn.peer);
+
+                // If I am host, remove the player and broadcast
+                if (useStore.getState().lobby.hostPeerId === localPlayer.peerId) {
+                    const playerId = peerToPlayerId.current[conn.peer];
+                    if (playerId) {
+                        removePlayer(playerId);
+                        delete peerToPlayerId.current[conn.peer];
+
+                        // Broadcast updated list
+                        const updatedPlayers = useStore.getState().lobby.players;
+                        broadcast({ type: 'LOBBY_UPDATE', players: updatedPlayers });
+                    }
+                }
+
                 setConnections(prev => {
                     const newConns = prev.filter(c => c.peer !== conn.peer);
                     connectionsRef.current = newConns;
                     return newConns;
                 });
-                // We can't easily find which player disconnected without mapping
-                // But handleData 'KICKED' or heartbeat would handle this.
             });
         });
 
@@ -85,7 +98,7 @@ export const PeerProvider = ({ children }: { children: React.ReactNode }) => {
                         id: lastJoinedLobby.id,
                         hostPeerId: lastJoinedLobby.hostPeerId,
                         status: 'lobby',
-                        players: [{ ...localPlayer, isHost: true, peerId: localPlayer.peerId! }]
+                        players: [{ ...localPlayer, isHost: true, peerId: localPlayer.peerId!, color: '#6366f1' }]
                     }
                 }));
             } else {
@@ -97,40 +110,39 @@ export const PeerProvider = ({ children }: { children: React.ReactNode }) => {
     }, [peer, localPlayer.peerId]);
 
     const handleData = (data: any, conn: DataConnection) => {
+        const currentState = useStore.getState();
+        const currentLocalPlayer = currentState.localPlayer;
+        const currentLobby = currentState.lobby;
+
         switch (data.type) {
             case 'JOIN_REQUEST':
-                const currentPlayers = useStore.getState().lobby.players;
-                if (currentPlayers.length >= 10 && !currentPlayers.find(p => p.id === data.player.id)) {
+                if (currentLobby.players.length >= 10 && !currentLobby.players.find(p => p.id === data.player.id)) {
                     conn.send({ type: 'KICKED' });
                     conn.close();
                     return;
                 }
 
-                const existingPlayer = currentPlayers.find(p => p.id === data.player.id);
-                const newPlayer = { ...data.player, peerId: conn.peer, isHost: false };
-                addPlayer(newPlayer);
+                addPlayer({ ...data.player, peerId: conn.peer, isHost: false });
+                peerToPlayerId.current[conn.peer] = data.player.id;
 
-                // Use latest state after add
-                const currentLobby = useStore.getState().lobby;
-                conn.send({ type: 'LOBBY_SYNC', lobbyState: currentLobby });
+                const latestLobby = useStore.getState().lobby;
+                conn.send({ type: 'LOBBY_SYNC', lobbyState: latestLobby });
 
-                // Broadcast to OLD players that a NEW (or returning) player joined
                 connectionsRef.current.forEach(c => {
                     if (c.peer !== conn.peer && c.open) {
-                        c.send({ type: 'LOBBY_UPDATE', players: currentLobby.players });
+                        c.send({ type: 'LOBBY_UPDATE', players: latestLobby.players });
                     }
                 });
                 break;
 
             case 'LOBBY_SYNC':
-                // Client syncs full state
                 useStore.setState(state => ({
                     lobby: {
                         ...state.lobby,
                         players: data.lobbyState.players,
                         status: data.lobbyState.status,
                         selectedCollection: data.lobbyState.selectedCollection,
-                        hostPeerId: state.lastJoinedLobby?.hostPeerId || null // Ensure hostPeerId is set
+                        hostPeerId: state.lastJoinedLobby?.hostPeerId || null
                     }
                 }));
                 break;
@@ -142,7 +154,7 @@ export const PeerProvider = ({ children }: { children: React.ReactNode }) => {
                 break;
 
             case 'KICK_PLAYER':
-                if (data.targetId === localPlayer.id) {
+                if (data.targetId === currentLocalPlayer.id) {
                     alert('You have been kicked from the lobby.');
                     resetLobby();
                 }
@@ -156,14 +168,27 @@ export const PeerProvider = ({ children }: { children: React.ReactNode }) => {
 
             case 'GAME_START':
                 setGameStatus('playing');
+                if (currentLocalPlayer.peerId === currentLobby.hostPeerId) {
+                    broadcast(data);
+                }
                 break;
 
             case 'COLLECTION_SELECTED':
                 setCollection(data.collection);
+                if (currentLocalPlayer.peerId === currentLobby.hostPeerId) {
+                    broadcast(data);
+                }
                 break;
 
             case 'PLAYER_MOVE':
                 updatePlayerPosition(data.playerId, data.x, data.y);
+                if (currentLocalPlayer.peerId === currentLobby.hostPeerId) {
+                    connectionsRef.current.forEach(c => {
+                        if (c.peer !== conn.peer && c.open) {
+                            c.send(data);
+                        }
+                    });
+                }
                 break;
 
             default:
