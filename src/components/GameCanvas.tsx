@@ -20,6 +20,7 @@ export default function GameCanvas() {
 
     // Movement state
     const keysPressed = useRef<Record<string, boolean>>({});
+    const mousePos = useRef({ x: 0, y: 0 });
     const lastUpdate = useRef(0);
     const lastFrameTime = useRef(0);
 
@@ -42,11 +43,18 @@ export default function GameCanvas() {
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => { keysPressed.current[e.code] = true; };
         const handleKeyUp = (e: KeyboardEvent) => { keysPressed.current[e.code] = false; };
+        const handleMouseMove = (e: MouseEvent) => {
+            mousePos.current = { x: e.clientX, y: e.clientY };
+        };
+
         window.addEventListener('keydown', handleKeyDown);
         window.addEventListener('keyup', handleKeyUp);
+        window.addEventListener('mousemove', handleMouseMove);
+
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('keyup', handleKeyUp);
+            window.removeEventListener('mousemove', handleMouseMove);
         };
     }, []);
 
@@ -71,7 +79,7 @@ export default function GameCanvas() {
             }
 
             // --- MOVEMENT ---
-            const BASE_SPEED = 450;
+            const BASE_SPEED = 128; // 2 blocks per second (64px * 2)
             const speed = BASE_SPEED * deltaTime;
             let moved = false;
 
@@ -107,7 +115,7 @@ export default function GameCanvas() {
             // Draw Grid (Translated by Camera)
             ctx.strokeStyle = '#1e293b';
             ctx.lineWidth = 1;
-            const gridSize = 80;
+            const gridSize = 64;
             const startX = -(camX % gridSize);
             const startY = -(camY % gridSize);
 
@@ -155,36 +163,54 @@ export default function GameCanvas() {
                 // Only render if in viewport
                 if (x < -50 || x > canvas.width + 50 || y < -50 || y > canvas.height + 50) return;
 
-                // Draw Body
-                ctx.beginPath();
-                ctx.arc(x, y, 22, 0, Math.PI * 2);
+                // Draw Body (Cube)
+                const size = 64;
                 ctx.fillStyle = p.color;
+                ctx.globalAlpha = 1.0;
+
+                // Shadow / Depth effect for a "cube" look
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.fillRect(x - size / 2 + 4, y - size / 2 + 4, size, size); // Shadow
+
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.roundRect(x - size / 2, y - size / 2, size, size, 8);
                 ctx.fill();
 
-                // No highlight or selection rings per user request
-                // We keep a subtle stroke for clarity
+                // Highlight top
+                ctx.fillStyle = 'rgba(255,255,255,0.1)';
+                ctx.beginPath();
+                ctx.roundRect(x - size / 2, y - size / 2, size, size / 3, [8, 8, 0, 0]);
+                ctx.fill();
+
                 ctx.strokeStyle = 'rgba(255,255,255,0.2)';
                 ctx.lineWidth = 2;
                 ctx.stroke();
 
-                // Name Tab
-                const nameY = y - 40;
-                ctx.font = 'bold 16px sans-serif';
-                const nameWidth = ctx.measureText(p.name).width;
+                // Check Hover
+                const isHovered = Math.abs(mousePos.current.x - x) < size / 2 && Math.abs(mousePos.current.y - y) < size / 2;
 
-                ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
-                ctx.roundRect(x - (nameWidth + 20) / 2, nameY - 20, nameWidth + 20, 25, 6);
-                ctx.fill();
+                if (isHovered) {
+                    // Name Tab
+                    const nameY = y - 45;
+                    ctx.font = 'bold 16px sans-serif';
+                    const nameWidth = ctx.measureText(p.name).width;
 
-                ctx.fillStyle = '#f8fafc';
-                ctx.textAlign = 'center';
-                ctx.fillText(p.name, x, nameY);
+                    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+                    ctx.beginPath();
+                    ctx.roundRect(x - (nameWidth + 20) / 2, nameY - 20, nameWidth + 20, 25, 6);
+                    ctx.fill();
 
-                // Role/You Tags
-                if (isMe || p.isHost) {
-                    ctx.font = 'bold 10px sans-serif';
-                    ctx.fillStyle = isMe ? '#818cf8' : '#f59e0b';
-                    ctx.fillText(isMe ? 'YOU' : 'HOST', x, nameY - 22);
+                    ctx.fillStyle = '#f8fafc';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(p.name, x, nameY);
+
+                    // Role/You Tags
+                    if (isMe || p.isHost) {
+                        ctx.font = 'bold 10px sans-serif';
+                        ctx.fillStyle = isMe ? '#818cf8' : '#f59e0b';
+                        ctx.fillText(isMe ? 'YOU' : 'HOST', x, nameY - 22);
+                    }
                 }
             });
 
@@ -204,7 +230,8 @@ export default function GameCanvas() {
 
     return (
         <div className="relative w-full h-screen bg-slate-950 overflow-hidden select-none">
-            <canvas ref={canvasRef} className="block cursor-none" />
+            <canvas ref={canvasRef} className="block cursor-default" />
+
 
             <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none">
                 <div className="flex gap-4 pointer-events-auto">
