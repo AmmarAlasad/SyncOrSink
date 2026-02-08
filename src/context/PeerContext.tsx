@@ -142,6 +142,11 @@ export const PeerProvider = ({ children }: { children: React.ReactNode }) => {
                         players: data.lobbyState.players,
                         status: data.lobbyState.status,
                         selectedCollection: data.lobbyState.selectedCollection,
+                        spawnGuard: data.lobbyState.spawnGuard,
+                        spawnDog: data.lobbyState.spawnDog,
+                        spawnDrone: data.lobbyState.spawnDrone,
+                        spawnCamera: data.lobbyState.spawnCamera,
+                        doors: data.lobbyState.doors || [],
                         hostPeerId: state.lastJoinedLobby?.hostPeerId || null
                     }
                 }));
@@ -167,7 +172,18 @@ export const PeerProvider = ({ children }: { children: React.ReactNode }) => {
                 break;
 
             case 'GAME_START':
-                setGameStatus('playing');
+                if (data.lobbyState) {
+                    useStore.setState(state => ({
+                        lobby: {
+                            ...state.lobby,
+                            ...data.lobbyState,
+                            status: 'playing'
+                        }
+                    }));
+                } else {
+                    setGameStatus('playing');
+                }
+
                 if (currentLocalPlayer.peerId === currentLobby.hostPeerId) {
                     broadcast(data);
                 }
@@ -189,6 +205,64 @@ export const PeerProvider = ({ children }: { children: React.ReactNode }) => {
                         }
                     });
                 }
+                break;
+
+            case 'ENEMY_MOVE':
+                useStore.getState().updateEnemyPosition(data.enemyId, data.x, data.y, data.state, data.targetId, data.targetPos, data.investigationTimer);
+                if (currentLocalPlayer.peerId === currentLobby.hostPeerId) {
+                    connectionsRef.current.forEach(c => {
+                        if (c.peer !== conn.peer && c.open) {
+                            c.send(data);
+                        }
+                    });
+                }
+                break;
+
+            case 'PLAYER_FROZEN':
+                useStore.getState().setPlayerFrozen(data.playerId, data.isFrozen);
+                if (currentLocalPlayer.peerId === currentLobby.hostPeerId) {
+                    broadcast(data);
+                }
+                break;
+
+            case 'SET_SPAWN_GUARD':
+                useStore.getState().setSpawnGuard(data.spawnGuard);
+                if (currentLocalPlayer.peerId === currentLobby.hostPeerId) {
+                    broadcast(data);
+                }
+                break;
+
+            case 'SET_SPAWN_DOG':
+                useStore.getState().setSpawnDog(data.spawnDog);
+                if (currentLocalPlayer.peerId === currentLobby.hostPeerId) {
+                    broadcast(data);
+                }
+                break;
+
+            case 'SET_SPAWN_CAMERA':
+                useStore.getState().setSpawnCamera(data.spawnCamera);
+                if (currentLocalPlayer.peerId === currentLobby.hostPeerId) {
+                    broadcast(data);
+                }
+                break;
+
+            case 'SET_SPAWN_DRONE':
+                useStore.getState().setSpawnDrone(data.spawnDrone);
+                if (currentLocalPlayer.peerId === currentLobby.hostPeerId) {
+                    broadcast(data);
+                }
+                break;
+
+            case 'ENEMY_ALARM':
+                // Optional: Play sound or visual effect for all clients
+                // For now just host handles the logic, but broadcast allows effects
+                if (currentLocalPlayer.peerId === currentLobby.hostPeerId) {
+                    broadcast(data);
+                }
+                break;
+
+            case 'GAME_STATUS_UPDATE':
+                useStore.getState().setGameStatus(data.status);
                 break;
 
             default:

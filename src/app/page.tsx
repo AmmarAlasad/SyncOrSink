@@ -38,8 +38,8 @@ export default function Home() {
   // Render Logic
   if (!isClient) return null; // Prevent hydration mismatch
 
-  // If in game
-  if (lobby.status === 'playing') {
+  // If in game or gameover
+  if (lobby.status === 'playing' || lobby.status === 'gameover') {
     return <GameCanvas />;
   }
 

@@ -12,7 +12,7 @@ const COLLECTIONS: CollectionType[] = [
 ];
 
 export default function Lobby() {
-    const { lobby, localPlayer, createLobby, removePlayer, setCollection, setGameStatus } = useStore();
+    const { lobby, localPlayer, createLobby, removePlayer, setCollection, setGameStatus, setSpawnGuard, setSpawnDog, setSpawnDrone, setSpawnCamera } = useStore();
     const { broadcast, sendToHost } = usePeer();
     const [copied, setCopied] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
@@ -28,41 +28,20 @@ export default function Lobby() {
     };
 
     const handleKick = (playerId: string) => {
-        // Only host can kick
         if (!isHost) return;
-
-        // Logic to notify kicked player
-        // We need to send a message to that specific peer to disconnect
-        // But currently broadcast sends to all. 
-        // Optimization: PeerContext needs sendToPeer(peerId, data)
-        // For now, broadcast KICK with targetId
-        broadcast({ type: 'KICK_PLAYER', targetId: playerId }); // TODO: Handle in PeerContext
+        broadcast({ type: 'KICK_PLAYER', targetId: playerId });
         removePlayer(playerId);
     };
 
     const handleStartGame = () => {
-        // Validate collection matches player count?
-        // "if the player chooses the 2players collection... he will be able to player with 1 more player"
-        // Ideally we check if lobby.players.length matches the collection requirement?
         if (!lobby.selectedCollection) return;
-        broadcast({ type: 'GAME_START' });
         setGameStatus('playing');
+        const updatedLobby = useStore.getState().lobby;
+        broadcast({ type: 'GAME_START', lobbyState: updatedLobby });
     };
-
-    const currentCollectionIndex = COLLECTIONS.indexOf(lobby.selectedCollection as CollectionType);
-
-    // Logic to disable collections based on player count?
-    // "if there is more then 2 palyers in the lobby the other collections will not be playable for them"
-    // Implies: if 3 players, can't play 2player collection? Or maybe can but someone sits out?
-    // "if the player chooses the 2players collection... he will be able to player with 1 more player if there is more then 2 palyers in the lobby the other collections will not be playable for them."
-    // This phrasing is slightly ambiguous.
-    // Interpretation: You can only select collections that support >= current player count?
-    // OR: You select a collection, and that defines the max players.
-    // Let's assume: Host selects collection.
 
     return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white p-4 relative">
-            {/* Settings Button in Lobby */}
             <div className="absolute top-4 right-4 z-10">
                 <button
                     onClick={() => setShowSettings(true)}
@@ -78,16 +57,15 @@ export default function Lobby() {
                         Lobby
                     </h1>
                     <div className="flex items-center gap-2 bg-slate-700 px-4 py-2 rounded-lg">
-                        <span className="text-slate-400 text-sm mr-2">Lobby ID:</span>
+                        <span className="text-slate-400 text-sm mr-2" id="lobby-id-label">Lobby ID:</span>
                         <code className="text-blue-300 font-mono">{lobby.hostPeerId}</code>
-                        <button onClick={handleCopyId} className="hover:text-white transition-colors">
+                        <button onClick={handleCopyId} className="hover:text-white transition-colors" id="copy-lobby-id">
                             {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
                         </button>
                     </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {/* Player List */}
                     <div className="bg-slate-700/50 rounded-xl p-6">
                         <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
                             <Users size={20} /> Players ({lobby.players.length}/10)
@@ -105,7 +83,7 @@ export default function Lobby() {
                                         <button
                                             onClick={() => handleKick(player.id)}
                                             className="text-red-400 hover:text-red-300 hover:bg-red-400/10 p-2 rounded-full transition-colors"
-                                            title="Kick Player"
+                                            id={`kick-${player.id}`}
                                         >
                                             <LogOut size={16} />
                                         </button>
@@ -115,7 +93,6 @@ export default function Lobby() {
                         </div>
                     </div>
 
-                    {/* Game Settings (Host Only) */}
                     <div className="bg-slate-700/50 rounded-xl p-6">
                         <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
                             <Play size={20} /> Game Setup
@@ -132,16 +109,17 @@ export default function Lobby() {
                                             return (
                                                 <button
                                                     key={col}
+                                                    id={`collection-${col}`}
                                                     disabled={isDisabled}
                                                     onClick={() => {
                                                         setCollection(col);
                                                         broadcast({ type: 'COLLECTION_SELECTED', collection: col });
                                                     }}
                                                     className={`p-3 rounded-lg border text-sm transition-all ${lobby.selectedCollection === col
-                                                            ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20'
-                                                            : isDisabled
-                                                                ? 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed opacity-50'
-                                                                : 'bg-slate-800 border-slate-600 hover:border-slate-500 text-slate-300'
+                                                        ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20'
+                                                        : isDisabled
+                                                            ? 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed opacity-50'
+                                                            : 'bg-slate-800 border-slate-600 hover:border-slate-500 text-slate-300'
                                                         }`}
                                                 >
                                                     {col}
@@ -152,17 +130,89 @@ export default function Lobby() {
                                     </div>
                                 </div>
 
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg border border-slate-600">
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-semibold text-white">Include Guard</span>
+                                            <span className="text-xs text-slate-400">Spawn a patrolling guard</span>
+                                        </div>
+                                        <button
+                                            id="toggle-guard"
+                                            onClick={() => {
+                                                const newState = !lobby.spawnGuard;
+                                                setSpawnGuard(newState);
+                                                broadcast({ type: 'SET_SPAWN_GUARD', spawnGuard: newState });
+                                            }}
+                                            className={`w-12 h-6 rounded-full transition-colors relative ${lobby.spawnGuard ? 'bg-indigo-600' : 'bg-slate-600'}`}
+                                        >
+                                            <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${lobby.spawnGuard ? 'translate-x-6' : ''}`}></div>
+                                        </button>
+                                    </div>
+
+                                    <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg border border-slate-600">
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-semibold text-white">Include Dog</span>
+                                            <span className="text-xs text-slate-400">Spawn a fast, lethal dog</span>
+                                        </div>
+                                        <button
+                                            id="toggle-dog"
+                                            onClick={() => {
+                                                const newState = !lobby.spawnDog;
+                                                setSpawnDog(newState);
+                                                broadcast({ type: 'SET_SPAWN_DOG', spawnDog: newState });
+                                            }}
+                                            className={`w-12 h-6 rounded-full transition-colors relative ${lobby.spawnDog ? 'bg-indigo-600' : 'bg-slate-600'}`}
+                                        >
+                                            <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${lobby.spawnDog ? 'translate-x-6' : ''}`}></div>
+                                        </button>
+                                    </div>
+
+                                    <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg border border-slate-600">
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-semibold text-white">Include Drone</span>
+                                            <span className="text-xs text-slate-400">Patrols and calls backup</span>
+                                        </div>
+                                        <button
+                                            id="toggle-drone"
+                                            onClick={() => {
+                                                const newState = !lobby.spawnDrone;
+                                                setSpawnDrone(newState);
+                                                broadcast({ type: 'SET_SPAWN_DRONE', spawnDrone: newState });
+                                            }}
+                                            className={`w-12 h-6 rounded-full transition-colors relative ${lobby.spawnDrone ? 'bg-indigo-600' : 'bg-slate-600'}`}
+                                        >
+                                            <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${lobby.spawnDrone ? 'translate-x-6' : ''}`}></div>
+                                        </button>
+                                    </div>
+
+                                    <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg border border-slate-600">
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-semibold text-white">Include Camera</span>
+                                            <span className="text-xs text-slate-400">Stationary monitoring unit</span>
+                                        </div>
+                                        <button
+                                            id="toggle-camera"
+                                            onClick={() => {
+                                                const newState = !lobby.spawnCamera;
+                                                setSpawnCamera(newState);
+                                                broadcast({ type: 'SET_SPAWN_CAMERA', spawnCamera: newState });
+                                            }}
+                                            className={`w-12 h-6 rounded-full transition-colors relative ${lobby.spawnCamera ? 'bg-indigo-600' : 'bg-slate-600'}`}
+                                        >
+                                            <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${lobby.spawnCamera ? 'translate-x-6' : ''}`}></div>
+                                        </button>
+                                    </div>
+                                </div>
+
                                 <div className="pt-4 border-t border-slate-600">
                                     <button
+                                        id="start-game-btn"
                                         onClick={handleStartGame}
                                         disabled={!lobby.selectedCollection}
                                         className="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white rounded-xl font-bold text-lg shadow-lg shadow-green-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02]"
                                     >
                                         Start Game
                                     </button>
-                                    <p className="text-xs text-slate-400 text-center mt-2">
-                                        Wait for all players to be ready...
-                                    </p>
                                 </div>
                             </div>
                         ) : (
