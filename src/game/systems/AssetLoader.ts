@@ -39,6 +39,28 @@ export class AssetLoader {
             });
         });
 
+        // Load environment assets
+        const envAssets = [
+            { key: 'break-wall', path: '/assets/environment/break-wall.png' },
+            { key: 'break-wall-dark', path: '/assets/environment/break-wall-dark.png' },
+            { key: 'grass-block', path: '/assets/environment/grass-block.png' },
+            { key: 'wood-wall', path: '/assets/environment/wood-wall.png' }
+        ];
+
+        envAssets.forEach(asset => {
+            const img = new Image();
+            img.src = asset.path;
+            const promise = new Promise<void>((resolve) => {
+                img.onload = () => resolve();
+                img.onerror = () => {
+                    console.warn(`Failed to load environment asset: ${asset.path}`);
+                    resolve();
+                };
+            });
+            loadPromises.push(promise);
+            this.images[asset.key] = img;
+        });
+
         await Promise.all(loadPromises);
         this.loaded = true;
     }

@@ -1,5 +1,6 @@
 import { GameConfig } from '../core/GameConfig';
 import type { Camera } from '../core/Camera';
+import { assetLoader } from '../systems/AssetLoader';
 
 /**
  * BackgroundRenderer - Renders background elements
@@ -9,9 +10,39 @@ export class BackgroundRenderer {
     render(ctx: CanvasRenderingContext2D, camera: Camera, collectionName?: string | null): void {
         const { width, height } = camera.viewport;
 
-        // Background color
-        ctx.fillStyle = '#0f172a';
+        // Base background color (outside world)
+        ctx.fillStyle = '#020617';
         ctx.fillRect(0, 0, width, height);
+
+        // Tile break-wall-dark within world boundaries
+        const wallDark = assetLoader.getImage('break-wall-dark');
+        if (wallDark) {
+            const startCol = Math.max(0, Math.floor(camera.x / GameConfig.GRID_SIZE));
+            const endCol = Math.min(GameConfig.MAP_BLOCKS, Math.ceil((camera.x + width) / GameConfig.GRID_SIZE));
+            const startRow = Math.max(0, Math.floor(camera.y / GameConfig.GRID_SIZE));
+            const endRow = Math.min(GameConfig.MAP_BLOCKS, Math.ceil((camera.y + height) / GameConfig.GRID_SIZE));
+
+            for (let col = startCol; col < endCol; col++) {
+                for (let row = startRow; row < endRow; row++) {
+                    ctx.drawImage(
+                        wallDark,
+                        col * GameConfig.GRID_SIZE - camera.x,
+                        row * GameConfig.GRID_SIZE - camera.y,
+                        GameConfig.GRID_SIZE,
+                        GameConfig.GRID_SIZE
+                    );
+                }
+            }
+        } else {
+            // Fallback if image not loaded
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(
+                -camera.x,
+                -camera.y,
+                GameConfig.WORLD_SIZE,
+                GameConfig.WORLD_SIZE
+            );
+        }
 
         // Watermark text
         if (collectionName) {
