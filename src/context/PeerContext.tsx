@@ -297,17 +297,17 @@ export const PeerProvider = ({ children }: { children: React.ReactNode }) => {
         });
     };
 
-    const broadcast = (data: any) => {
+    const broadcast = React.useCallback((data: any) => {
         connectionsRef.current.forEach(conn => {
             if (conn.open) conn.send(data);
         });
-    };
+    }, []);
 
-    const sendToHost = (data: any) => {
+    const sendToHost = React.useCallback((data: any) => {
         if (connectionsRef.current.length > 0) {
             connectionsRef.current[0].send(data);
         }
-    };
+    }, []);
 
     return (
         <PeerContext.Provider value={{ peer, connections, connectToHost, broadcast, sendToHost }}>

@@ -202,97 +202,16 @@ export const useStore = create<AppState>()(
             setGameStatus: (status) => set((state) => {
                 // Initialize enemies and randomize positions when game starts/restarts if I am host
                 if (status === 'playing' && state.localPlayer.id === state.lobby.players.find(p => p.isHost)?.id) {
-                    const GRID_SIZE = 64;
-                    const MAP_BLOCKS = 16;
+                    const { GameInitializer } = require('@/game/core/GameInitializer');
 
-                    const getRandomPos = (margin = 2) => {
-                        const bx = Math.floor(Math.random() * (MAP_BLOCKS - margin * 2)) + margin;
-                        const by = Math.floor(Math.random() * (MAP_BLOCKS - margin * 2)) + margin;
-                        return { x: bx * GRID_SIZE + 32, y: by * GRID_SIZE + 32 };
-                    };
-
-                    // Initialize Doors first (fixed positions near potential drone paths or random)
-                    const doors: Door[] = [
-                        { id: 'door-1', position: { x: 1 * GRID_SIZE + 32, y: 1 * GRID_SIZE + 32 } },
-                        { id: 'door-2', position: { x: 14 * GRID_SIZE + 32, y: 1 * GRID_SIZE + 32 } },
-                        { id: 'door-3', position: { x: 1 * GRID_SIZE + 32, y: 14 * GRID_SIZE + 32 } },
-                        { id: 'door-4', position: { x: 14 * GRID_SIZE + 32, y: 14 * GRID_SIZE + 32 } },
-                    ];
-
-                    const enemies: Enemy[] = [];
-
-                    if (state.lobby.spawnGuard) {
-                        const row = Math.floor(Math.random() * (MAP_BLOCKS - 4)) + 2;
-                        const startCol = Math.floor(Math.random() * 6) + 1;
-                        const endCol = Math.floor(Math.random() * 6) + 8;
-                        const start = { x: startCol * GRID_SIZE + 32, y: row * GRID_SIZE + 32 };
-                        const end = { x: endCol * GRID_SIZE + 32, y: row * GRID_SIZE + 32 };
-                        enemies.push({
-                            id: 'guard-1',
-                            type: 'guard',
-                            position: { ...start },
-                            state: 'patrolling',
-                            patrolIndex: 0,
-                            patrolPoints: [start, end]
-                        });
-                    }
-
-                    if (state.lobby.spawnDog) {
-                        const row = Math.floor(Math.random() * (MAP_BLOCKS - 4)) + 2;
-                        const startCol = Math.floor(Math.random() * 5) + 1;
-                        const endCol = Math.floor(Math.random() * 5) + 9;
-                        const start = { x: startCol * GRID_SIZE + 32, y: row * GRID_SIZE + 32 };
-                        const end = { x: endCol * GRID_SIZE + 32, y: row * GRID_SIZE + 32 };
-                        enemies.push({
-                            id: 'dog-1',
-                            type: 'dog',
-                            position: { ...start },
-                            state: 'patrolling',
-                            patrolIndex: 0,
-                            patrolPoints: [start, end]
-                        });
-                    }
-
-                    if (state.lobby.spawnDrone) {
-                        const row = Math.floor(Math.random() * (MAP_BLOCKS - 4)) + 2;
-                        const startCol = Math.floor(Math.random() * 4) + 2;
-                        const endCol = Math.floor(Math.random() * 4) + 10;
-                        const start = { x: startCol * GRID_SIZE + 32, y: row * GRID_SIZE + 32 };
-                        const end = { x: endCol * GRID_SIZE + 32, y: row * GRID_SIZE + 32 };
-                        enemies.push({
-                            id: 'drone-1',
-                            type: 'drone',
-                            position: { ...start },
-                            state: 'patrolling',
-                            patrolIndex: 0,
-                            patrolPoints: [start, end]
-                        });
-                    }
-
-                    if (state.lobby.spawnCamera) {
-                        const cameraPositions = [
-                            { x: 4 * GRID_SIZE + 32, y: 4 * GRID_SIZE + 32 },
-                            { x: 11 * GRID_SIZE + 32, y: 8 * GRID_SIZE + 32 },
-                            { x: 4 * GRID_SIZE + 32, y: 11 * GRID_SIZE + 32 },
-                        ];
-                        cameraPositions.forEach((pos, i) => {
-                            enemies.push({
-                                id: `camera-${i + 1}`,
-                                type: 'camera',
-                                position: pos,
-                                state: 'patrolling',
-                                patrolIndex: 0,
-                                patrolPoints: [pos]
-                            });
-                        });
-                    }
-
-                    // Randomize player positions
-                    const randomizedPlayers = state.lobby.players.map(p => ({
-                        ...p,
-                        isFrozen: false,
-                        position: getRandomPos()
-                    }));
+                    const doors = GameInitializer.initializeDoors();
+                    const enemies = GameInitializer.initializeEnemies({
+                        spawnGuard: state.lobby.spawnGuard,
+                        spawnDog: state.lobby.spawnDog,
+                        spawnDrone: state.lobby.spawnDrone,
+                        spawnCamera: state.lobby.spawnCamera
+                    });
+                    const randomizedPlayers = GameInitializer.randomizePlayerPositions(state.lobby.players);
 
                     return { lobby: { ...state.lobby, status, enemies, players: randomizedPlayers, doors } };
                 }
