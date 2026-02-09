@@ -39,7 +39,17 @@ export class InvestigateBehavior {
 
         // Still moving to investigation site
         if (distToTarget > 10) {
-            const speed = GameConfig.PLAYER_BASE_SPEED * 1.5; // Guard investigating at 1.5x player speed
+            const speed = GameConfig.getEnemySpeed(enemy.type, 'investigating');
+
+            // If speed is 0 (like for a camera), don't move
+            if (speed === 0) {
+                return {
+                    x: enemy.position.x,
+                    y: enemy.position.y,
+                    timer: currentTimer
+                };
+            }
+
             const angle = Math.atan2(
                 enemy.targetPosition.y - enemy.position.y,
                 enemy.targetPosition.x - enemy.position.x

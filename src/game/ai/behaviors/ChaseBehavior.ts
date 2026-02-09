@@ -22,11 +22,18 @@ export class ChaseBehavior {
             return null; // Target lost
         }
 
+        const dx = target.position.x - enemy.position.x;
+        const dy = target.position.y - enemy.position.y;
+        const distance = Math.hypot(dx, dy);
+
+        // Max Chase Distance
+        const maxDist = enemy.type === 'drone' ? GameConfig.GRID_SIZE : GameConfig.GRID_SIZE * 8; // Increased to 8 to cover Dog's 5 block detection + buffer
+        if (distance > maxDist) {
+            return null;
+        }
+
         const speed = GameConfig.getEnemySpeed(enemy.type, 'chase');
-        const angle = Math.atan2(
-            target.position.y - enemy.position.y,
-            target.position.x - enemy.position.x
-        );
+        const angle = Math.atan2(dy, dx);
 
         return {
             x: enemy.position.x + Math.cos(angle) * speed * deltaTime,

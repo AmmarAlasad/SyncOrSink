@@ -27,6 +27,7 @@ export type Enemy = {
     patrolPoints: { x: number; y: number }[];
     investigationTimer?: number;
     spawnDoorId?: string;
+    direction?: string; // For cameras: 'Left' | 'Right'
 };
 
 export type Door = {
@@ -179,7 +180,7 @@ export const useStore = create<AppState>()(
                 lobby: {
                     ...state.lobby,
                     enemies: state.lobby.enemies.map((e) =>
-                        e.id === id ? { ...e, position: { x, y }, state: status, targetPlayerId: targetId, targetPosition: targetPos, investigationTimer: timer } : e
+                        e.id === id ? { ...e, position: { x, y }, state: status, targetPlayerId: targetId, targetPosition: targetPos, investigationTimer: timer ?? e.investigationTimer } : e
                     ),
                 },
             })),

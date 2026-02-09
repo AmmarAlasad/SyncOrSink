@@ -63,8 +63,8 @@ export class GameInitializer {
 
     private static createGuard(): Enemy {
         const row = Math.floor(Math.random() * (GameConfig.MAP_BLOCKS - 4)) + 2;
-        const startCol = Math.floor(Math.random() * 6) + 1;
-        const endCol = Math.floor(Math.random() * 6) + 8;
+        const startCol = Math.floor(Math.random() * (GameConfig.MAP_BLOCKS / 4)) + 1;
+        const endCol = Math.floor(Math.random() * (GameConfig.MAP_BLOCKS / 4)) + Math.floor(GameConfig.MAP_BLOCKS * 0.7);
 
         const start = GameConfig.gridToWorld(startCol, row);
         const end = GameConfig.gridToWorld(endCol, row);
@@ -81,8 +81,8 @@ export class GameInitializer {
 
     private static createDog(): Enemy {
         const row = Math.floor(Math.random() * (GameConfig.MAP_BLOCKS - 4)) + 2;
-        const startCol = Math.floor(Math.random() * 5) + 1;
-        const endCol = Math.floor(Math.random() * 5) + 9;
+        const startCol = Math.floor(Math.random() * (GameConfig.MAP_BLOCKS / 5)) + 1;
+        const endCol = Math.floor(Math.random() * (GameConfig.MAP_BLOCKS / 5)) + Math.floor(GameConfig.MAP_BLOCKS * 0.7);
 
         const start = GameConfig.gridToWorld(startCol, row);
         const end = GameConfig.gridToWorld(endCol, row);
@@ -99,8 +99,8 @@ export class GameInitializer {
 
     private static createDrone(): Enemy {
         const row = Math.floor(Math.random() * (GameConfig.MAP_BLOCKS - 4)) + 2;
-        const startCol = Math.floor(Math.random() * 4) + 2;
-        const endCol = Math.floor(Math.random() * 4) + 10;
+        const startCol = Math.floor(Math.random() * (GameConfig.MAP_BLOCKS / 6)) + 2;
+        const endCol = Math.floor(Math.random() * (GameConfig.MAP_BLOCKS / 6)) + Math.floor(GameConfig.MAP_BLOCKS * 0.7);
 
         const start = GameConfig.gridToWorld(startCol, row);
         const end = GameConfig.gridToWorld(endCol, row);
@@ -116,13 +116,14 @@ export class GameInitializer {
     }
 
     private static createCameras(): Enemy[] {
-        return GameConfig.CAMERA_POSITIONS.map((pos, i) => ({
+        return GameConfig.CAMERA_CONFIG.map((config, i) => ({
             id: `camera-${i + 1}`,
             type: 'camera' as const,
-            position: GameConfig.gridToWorld(pos.x, pos.y),
+            position: GameConfig.gridToWorld(config.x, config.y),
+            direction: config.direction,
             state: 'patrolling' as const,
             patrolIndex: 0,
-            patrolPoints: [GameConfig.gridToWorld(pos.x, pos.y)]
+            patrolPoints: [GameConfig.gridToWorld(config.x, config.y)]
         }));
     }
 }

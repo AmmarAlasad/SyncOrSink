@@ -14,9 +14,11 @@ export class BackgroundRenderer {
         ctx.fillStyle = '#020617';
         ctx.fillRect(0, 0, width, height);
 
-        // Tile break-wall-dark within world boundaries
+        // Tile assets within world boundaries
         const wallDark = assetLoader.getImage('break-wall-dark');
-        if (wallDark) {
+        const wallNormal = assetLoader.getImage('break-wall');
+
+        if (wallDark && wallNormal) {
             const startCol = Math.max(0, Math.floor(camera.x / GameConfig.GRID_SIZE));
             const endCol = Math.min(GameConfig.MAP_BLOCKS, Math.ceil((camera.x + width) / GameConfig.GRID_SIZE));
             const startRow = Math.max(0, Math.floor(camera.y / GameConfig.GRID_SIZE));
@@ -24,8 +26,11 @@ export class BackgroundRenderer {
 
             for (let col = startCol; col < endCol; col++) {
                 for (let row = startRow; row < endRow; row++) {
+                    const isWall = col === 0 || col === GameConfig.MAP_BLOCKS - 1 || row === 0 || row === GameConfig.MAP_BLOCKS - 1;
+                    const img = isWall ? wallNormal : wallDark;
+
                     ctx.drawImage(
-                        wallDark,
+                        img,
                         col * GameConfig.GRID_SIZE - camera.x,
                         row * GameConfig.GRID_SIZE - camera.y,
                         GameConfig.GRID_SIZE,

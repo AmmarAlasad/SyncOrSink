@@ -6,7 +6,7 @@
 export class GameConfig {
     // World Configuration
     static readonly GRID_SIZE = 64;
-    static readonly MAP_BLOCKS = 16;
+    static readonly MAP_BLOCKS = 30;
     static readonly WORLD_SIZE = GameConfig.GRID_SIZE * GameConfig.MAP_BLOCKS;
     static readonly CENTER_POS = (GameConfig.MAP_BLOCKS / 2) * GameConfig.GRID_SIZE + (GameConfig.GRID_SIZE / 2);
 
@@ -23,20 +23,23 @@ export class GameConfig {
     static readonly ENEMY_SPEED = {
         GUARD_PATROL: 1.5,
         GUARD_CHASE: 2.5,
-        GUARD_INVESTIGATING: 1.5, // Multiplied by player speed
+        GUARD_INVESTIGATING: 2.0,
         DOG_PATROL: 2.0,
         DOG_CHASE: 3.5,
+        DOG_INVESTIGATING: 3.0,
         DRONE_PATROL: 2.5,
-        DRONE_CHASE: 0,
+        DRONE_CHASE: 3.0, // Increased so it can follow
+        DRONE_INVESTIGATING: 3.0,
         CAMERA_PATROL: 0,
         CAMERA_CHASE: 0,
+        CAMERA_INVESTIGATING: 0,
     };
 
     // Detection Ranges (in grid units)
     static readonly DETECTION_RANGE = {
         GUARD: 2,
         DOG: 5,
-        DRONE: 2,
+        DRONE: 1, // 1 block range as requested
         CAMERA: 2,
     };
 
@@ -45,7 +48,7 @@ export class GameConfig {
     static readonly DETECTION_ROW_THRESHOLD = 32; // Horizontal view threshold
 
     // Investigation Configuration
-    static readonly INVESTIGATION_DURATION = 8; // seconds
+    static readonly INVESTIGATION_DURATION = 1; // seconds
     static readonly PATROL_WAYPOINT_THRESHOLD = 5; // distance to waypoint
 
     // Network Configuration
@@ -61,22 +64,24 @@ export class GameConfig {
     };
 
     // World Boundaries
-    static readonly WORLD_MARGIN = 32;
+    static readonly WORLD_MARGIN = 96; // Stay 1.5 blocks away from absolute map edge (keeps players out of grid 0 and 15)
     static readonly MIN_SPAWN_MARGIN = 2; // blocks
 
     // Door Positions (fixed corners)
     static readonly DOOR_POSITIONS = [
         { x: 1, y: 1 },
-        { x: 14, y: 1 },
-        { x: 1, y: 14 },
-        { x: 14, y: 14 },
+        { x: 28, y: 1 },
+        { x: 1, y: 28 },
+        { x: 28, y: 28 },
     ];
 
-    // Camera Positions (fixed)
-    static readonly CAMERA_POSITIONS = [
-        { x: 4, y: 4 },
-        { x: 11, y: 8 },
-        { x: 4, y: 11 },
+    // Camera Configurations (fixed)
+    static readonly CAMERA_CONFIG = [
+        { x: 0, y: 5, direction: 'Right' },  // Left wall
+        { x: 29, y: 8, direction: 'Left' },  // Right wall
+        { x: 0, y: 15, direction: 'Right' }, // Left wall
+        { x: 29, y: 20, direction: 'Left' }, // Right wall
+        { x: 0, y: 25, direction: 'Right' }, // Left wall
     ];
 
     // Helper Methods

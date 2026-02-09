@@ -7,29 +7,46 @@ export class AssetLoader {
     }
 
     async loadAssets(): Promise<void> {
-        const enemyConfig = {
-            guard: { path: 'Guard/Guard', dirs: ['Up', 'Down', 'Left', 'Right'], frames: 2 },
-            dog: { path: 'Dog/Dog', dirs: ['Up', 'Down', 'Left', 'Right'], frames: 2 },
-            drone: { path: 'Drone/', dirs: ['Up', 'Down', 'Left', 'Right'], frames: 1 },
-            camera: { path: 'Camera/Camera', dirs: ['Left', 'Right'], frames: 2 }
-        };
+        const types = ['guard', 'dog', 'drone', 'camera'];
+        const dirs = ['Up', 'Down', 'Left', 'Right'];
 
         const loadPromises: Promise<void>[] = [];
 
-        Object.entries(enemyConfig).forEach(([type, config]) => {
-            config.dirs.forEach(dir => {
-                for (let f = 1; f <= config.frames; f++) {
-                    const img = new Image();
-                    // Handle inconsistent naming for Camera frame 1
-                    let frameSuffix = f.toString();
-                    if (type === 'camera' && dir === 'Left' && f === 1) frameSuffix = '';
+        types.forEach(type => {
+            const frames = (type === 'drone') ? 1 : 2;
+            const currentDirs = (type === 'camera') ? ['Left', 'Right'] : dirs;
 
-                    const fileName = `${config.path}${dir}${frameSuffix}.png`;
-                    img.src = `/assets/Enemy/${fileName}`;
+            currentDirs.forEach(dir => {
+                for (let f = 1; f <= frames; f++) {
+                    const img = new Image();
+                    let fileName: string;
+
+                    if (type === 'guard') {
+                        fileName = `Guard${dir}${f}.png`;
+                    } else if (type === 'dog') {
+                        fileName = `Dog${dir}${f}.png`;
+                    } else if (type === 'drone') {
+                        fileName = `${dir}${f}.png`;
+                    } else if (type === 'camera') {
+                        if (dir === 'Left' && f === 1) {
+                            fileName = `CameraLeft.png`; // No '1' for frame 1
+                        } else {
+                            fileName = `Camera${dir}${f}.png`;
+                        }
+                    } else {
+                        // This else block should ideally not be reached if all types are covered
+                        // but keeping it for robustness or if new types are added without explicit handling.
+                        fileName = `${dir}${f}.png`;
+                    }
+
+                    const folder = type.charAt(0).toUpperCase() + type.slice(1);
+                    const fullPath = `/assets/Enemy/${folder}/${fileName}`;
+                    img.src = fullPath;
+
                     const promise = new Promise<void>((resolve) => {
                         img.onload = () => resolve();
                         img.onerror = () => {
-                            console.warn(`Failed to load image: ${fileName}`);
+                            console.error(`AssetLoader: Failed to load ${type} ${dir} frame ${f} from ${fullPath}`);
                             resolve();
                         };
                     });

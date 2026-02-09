@@ -29,13 +29,37 @@ export class DetectionSystem {
         for (const player of players) {
             if (!player.position || player.isFrozen) continue;
 
-            const dy = Math.abs(player.position.y - enemy.position.y);
-            const dx = Math.abs(player.position.x - enemy.position.x);
+            const dx = player.position.x - enemy.position.x;
+            const dy = player.position.y - enemy.position.y;
+            const distance = Math.hypot(dx, dy);
 
-            // Restricted to Horizontal View (same row, within range)
-            if (dy < GameConfig.DETECTION_ROW_THRESHOLD && dx < detectionRange) {
-                if (dx < minDist) {
-                    minDist = dx;
+            let isDetected = false;
+
+            if (enemy.type === 'camera') {
+                // Directional Detection for Cameras (2 blocks in front)
+                const gridX = Math.abs(dx);
+                const gridY = Math.abs(dy);
+
+                // Must be within 0.5 blocks vertically
+                const yThreshold = GameConfig.GRID_SIZE * 0.5;
+
+                if (gridY < yThreshold && gridX < detectionRange) {
+                    if (enemy.direction === 'Left' && dx < 0) {
+                        isDetected = true;
+                    } else if (enemy.direction === 'Right' && dx > 0) {
+                        isDetected = true;
+                    }
+                }
+            } else {
+                // Omnidirectional Detection for Guard, Dog, Drone
+                if (distance < detectionRange) {
+                    isDetected = true;
+                }
+            }
+
+            if (isDetected) {
+                if (distance < minDist) {
+                    minDist = distance;
                     closestPlayer = player;
                 }
             }

@@ -12,6 +12,7 @@ import { ChaseBehavior } from '../ai/behaviors/ChaseBehavior';
 import { InvestigateBehavior } from '../ai/behaviors/InvestigateBehavior';
 import { GridRenderer } from '../rendering/GridRenderer';
 import { BackgroundRenderer } from '../rendering/BackgroundRenderer';
+import { EnemyAI } from '../ai/EnemyAI';
 import { Player } from '../classes/Player';
 import { Enemy } from '../classes/Enemy';
 import { Door } from '../classes/Door';
@@ -45,6 +46,7 @@ export class GameEngine {
     private playerPos: { x: number, y: number };
     private remoteDisplayPos: Record<string, { x: number, y: number }> = {};
     private lastUpdate = 0;
+    private lastEnemySync = 0;
     private lastFrameTime = 0;
     private animationFrameId?: number;
     private assetsLoaded = false;
@@ -150,7 +152,7 @@ export class GameEngine {
         const isHost = hostPlayer ? localPlayer.id === hostPlayer.id : false;
 
         if (isHost && lobby.status === 'playing') {
-            this.updateEnemyAI(deltaTime, lobby, state);
+            this.updateEnemyAI(deltaTime, timestamp, lobby, state);
         }
 
         // Sync enemy instances AFTER AI update so renderers see latest host-calculated pos
@@ -246,84 +248,55 @@ export class GameEngine {
     /**
      * Update enemy AI (host only) - This is still complex, extracted from GameCanvas
      */
-    private updateEnemyAI(deltaTime: number, lobby: any, state: any): void {
+    private updateEnemyAI(deltaTime: number, timestamp: number, lobby: any, state: any): void {
         const enemiesToRemove: string[] = [];
         const newEnemies: EnemyType[] = [];
+
+        // Throttle enemy updates to 30fps to save bandwidth
+        const shouldBroadcast = timestamp - this.lastEnemySync > GameConfig.NETWORK_UPDATE_INTERVAL;
+        if (shouldBroadcast) {
+            this.lastEnemySync = timestamp;
+        }
 
         lobby.enemies.forEach((enemyData: EnemyType) => {
             if ((enemyData.state as any) === 'gone') return;
 
-            const detectionRange = GameConfig.getDetectionRange(enemyData.type);
-            let nextX = enemyData.position.x;
-            let nextY = enemyData.position.y;
-            let nextState = enemyData.state;
-            let targetId = enemyData.targetPlayerId;
-            let targetPos = enemyData.targetPosition;
-            let investigationTimer = enemyData.investigationTimer || 0;
+            const initialState = enemyData.state;
 
-            // Detection logic
-            if (nextState === 'patrolling' || nextState === 'returning') {
-                const detected = DetectionSystem.detectPlayer(enemyData, lobby.players, detectionRange);
-
-                if (detected) {
-                    if (enemyData.type === 'drone' || enemyData.type === 'camera') {
-                        if (lobby.doors && lobby.doors.length > 0) {
-                            const alarmResult = AlarmSystem.triggerAlarm(detected.player, lobby.doors, lobby.enemies);
-                            this.network.broadcast({ type: 'ENEMY_ALARM', position: alarmResult.alarmPosition });
-
-                            if (alarmResult.spawnedGuard) {
-                                newEnemies.push(alarmResult.spawnedGuard);
-                            }
-                        }
-                    } else {
-                        nextState = 'chasing';
-                        targetId = detected.player.id;
+            // Use the centralized AI system
+            const result = EnemyAI.update(enemyData, {
+                deltaTime,
+                players: lobby.players,
+                doors: lobby.doors,
+                allEnemies: lobby.enemies,
+                broadcast: (msg) => {
+                    // Always broadcast critical events (alarms, state changes)
+                    // Throttle movement updates unless state changed
+                    if (msg.type !== 'ENEMY_MOVE' || shouldBroadcast || msg.state !== initialState) {
+                        this.network.broadcast(msg);
                     }
-                }
-            }
-
-            // Movement state machines
-            if (nextState === 'chasing' && targetId) {
-                const target = lobby.players.find((p: PlayerType) => p.id === targetId);
-                const result = ChaseBehavior.update(enemyData, target, deltaTime);
-                if (result) {
-                    nextX = result.x;
-                    nextY = result.y;
-                }
-            } else if (nextState === 'investigating' && targetPos) {
-                const result = InvestigateBehavior.update(enemyData, deltaTime, lobby.doors);
-                nextX = result.x;
-                nextY = result.y;
-                investigationTimer = result.timer;
-
-                if (result.shouldReturn) {
-                    nextState = 'returning';
-                    targetPos = result.returnTarget;
-                }
-            } else if (nextState === 'returning') {
-                const target = targetPos || enemyData.patrolPoints[0];
-                const dist = Math.hypot(target.x - enemyData.position.x, target.y - enemyData.position.y);
-
-                if (dist < 5) {
-                    if (enemyData.type === 'guard' && enemyData.spawnDoorId) {
-                        enemiesToRemove.push(enemyData.id);
-                    } else {
-                        nextState = 'patrolling';
-                        targetPos = undefined;
+                },
+                updateEnemy: (id, updates) => {
+                    // Update local state immediately for smoother frame-to-frame logic
+                    const enemy = lobby.enemies.find((e: EnemyType) => e.id === id);
+                    if (enemy) {
+                        Object.assign(enemy, updates);
                     }
-                } else {
-                    const speed = GameConfig.getEnemySpeed(enemyData.type, 'patrol');
-                    const angle = Math.atan2(target.y - enemyData.position.y, target.x - enemyData.position.x);
-                    nextX += Math.cos(angle) * speed * deltaTime;
-                    nextY += Math.sin(angle) * speed * deltaTime;
+
+                    // Sync to store
+                    state.updateEnemyPosition(id,
+                        updates.position?.x ?? (enemy?.position.x || 0),
+                        updates.position?.y ?? (enemy?.position.y || 0),
+                        updates.state ?? (enemy?.state || 'patrolling'),
+                        updates.targetPlayerId,
+                        updates.targetPosition,
+                        updates.investigationTimer
+                    );
                 }
-            } else if (nextState === 'patrolling') {
-                const result = PatrolBehavior.update(enemyData, deltaTime);
-                nextX = result.x;
-                nextY = result.y;
-                if (result.patrolIndex !== undefined) {
-                    enemyData.patrolIndex = result.patrolIndex;
-                }
+            });
+
+            if ((result as any).remove) {
+                enemiesToRemove.push(enemyData.id);
             }
 
             // Collision detection
@@ -335,25 +308,38 @@ export class GameEngine {
                 } else if (collision.shouldFreeze) {
                     state.setPlayerFrozen(collision.player.id, true);
                     this.network.broadcast({ type: 'PLAYER_FROZEN', playerId: collision.player.id, isFrozen: true });
+
+                    // Guard returns to patrol after freezing player
+                    if (enemyData.type === 'guard') {
+                        state.updateEnemyPosition(
+                            enemyData.id,
+                            enemyData.position.x,
+                            enemyData.position.y,
+                            'patrolling',
+                            undefined,
+                            undefined,
+                            0
+                        );
+                        this.network.broadcast({
+                            type: 'ENEMY_MOVE',
+                            enemyId: enemyData.id,
+                            x: enemyData.position.x,
+                            y: enemyData.position.y,
+                            state: 'patrolling',
+                            targetId: undefined,
+                            targetPos: undefined,
+                            investigationTimer: 0
+                        });
+                    }
                 }
             });
+        });
 
-            // Sync changes
-            if (nextX !== enemyData.position.x || nextY !== enemyData.position.y || nextState !== enemyData.state) {
-                enemyData.investigationTimer = investigationTimer;
-                enemyData.targetPosition = targetPos;
-                state.updateEnemyPosition(enemyData.id, nextX, nextY, nextState, targetId, targetPos, investigationTimer);
-                this.network.broadcast({
-                    type: 'ENEMY_MOVE',
-                    enemyId: enemyData.id,
-                    x: nextX,
-                    y: nextY,
-                    state: nextState,
-                    targetId,
-                    targetPos,
-                    investigationTimer
-                });
-            }
+        // Check player-to-player collisions for unfreezing
+        const playersToUnfreeze = CollisionSystem.checkPlayerUnfreezeCollisions(lobby.players);
+        playersToUnfreeze.forEach(playerId => {
+            state.setPlayerFrozen(playerId, false);
+            this.network.broadcast({ type: 'PLAYER_FROZEN', playerId, isFrozen: false });
         });
 
         // Handle spawning/removing

@@ -19,6 +19,7 @@ export class PatrolBehavior {
         // Reached waypoint, move to next
         if (dist < GameConfig.PATROL_WAYPOINT_THRESHOLD) {
             const nextIndex = (enemy.patrolIndex + 1) % enemy.patrolPoints.length;
+            if (enemy.type === 'dog') console.log(`Dog reached waypoint. Next index: ${nextIndex}`);
             return {
                 x: enemy.position.x,
                 y: enemy.position.y,

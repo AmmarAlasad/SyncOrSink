@@ -16,11 +16,37 @@ export default function Lobby() {
 
     const isHost = localPlayer.id === lobby.players.find(p => p.isHost)?.id;
 
-    const handleCopyId = () => {
+    const handleCopyId = async () => {
         if (lobby.hostPeerId) {
-            navigator.clipboard.writeText(lobby.hostPeerId);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
+            try {
+                // Check if clipboard API is available
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(lobby.hostPeerId);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                } else {
+                    // Fallback for browsers without clipboard API
+                    const input = document.createElement('input');
+                    input.value = lobby.hostPeerId;
+                    document.body.appendChild(input);
+                    input.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(input);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                }
+            } catch (error) {
+                console.error('Failed to copy lobby ID:', error);
+                // Fallback: create a temporary input element
+                const input = document.createElement('input');
+                input.value = lobby.hostPeerId;
+                document.body.appendChild(input);
+                input.select();
+                document.execCommand('copy');
+                document.body.removeChild(input);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+            }
         }
     };
 

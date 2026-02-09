@@ -60,4 +60,36 @@ export class CollisionSystem {
 
         return allCollisions;
     }
+
+    /**
+     * Check player-to-player collisions for unfreezing
+     * @param players All players
+     * @returns Array of player IDs that should be unfrozen
+     */
+    static checkPlayerUnfreezeCollisions(players: Player[]): string[] {
+        const toUnfreeze: string[] = [];
+        const unfreezeDistance = GameConfig.COLLISION_DISTANCE;
+
+        for (let i = 0; i < players.length; i++) {
+            const player1 = players[i];
+            if (!player1.position || player1.isFrozen) continue;
+
+            for (let j = 0; j < players.length; j++) {
+                if (i === j) continue;
+                const player2 = players[j];
+                if (!player2.position || !player2.isFrozen) continue;
+
+                const distance = Math.hypot(
+                    player1.position.x - player2.position.x,
+                    player1.position.y - player2.position.y
+                );
+
+                if (distance < unfreezeDistance && !toUnfreeze.includes(player2.id)) {
+                    toUnfreeze.push(player2.id);
+                }
+            }
+        }
+
+        return toUnfreeze;
+    }
 }
