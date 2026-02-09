@@ -75,22 +75,43 @@ export class GameEngine {
         inputHandler.attach();
     }
 
+    private updateIntervalId?: any;
+
     /**
      * Start the game loop
      */
     start(): void {
+        this.stop(); // Ensure no multiple loops
+
+        // Logic Update Loop (runs even when minimized)
+        let lastUpdateTime = performance.now();
+        this.updateIntervalId = setInterval(() => {
+            const now = performance.now();
+            const deltaTime = Math.min((now - lastUpdateTime) / 1000, 0.1);
+            lastUpdateTime = now;
+            this.update(deltaTime, now);
+        }, 1000 / 60);
+
+        // Rendering Loop (pauses when minimized to save resources)
         const render = (timestamp: number) => {
-            if (!this.lastFrameTime) this.lastFrameTime = timestamp;
-            const deltaTime = Math.min((timestamp - this.lastFrameTime) / 1000, 0.1);
-            this.lastFrameTime = timestamp;
-
-            this.update(deltaTime, timestamp);
             this.render(timestamp);
-
             this.animationFrameId = requestAnimationFrame(render);
         };
-
         this.animationFrameId = requestAnimationFrame(render);
+    }
+
+    /**
+     * Stop the game loop
+     */
+    stop(): void {
+        if (this.updateIntervalId) {
+            clearInterval(this.updateIntervalId);
+            this.updateIntervalId = undefined;
+        }
+        if (this.animationFrameId !== undefined) {
+            cancelAnimationFrame(this.animationFrameId);
+            this.animationFrameId = undefined;
+        }
     }
 
     /**
@@ -190,6 +211,41 @@ export class GameEngine {
 
         // Players
         this.renderPlayers(lobby.players, localPlayer.id, timestamp);
+
+        // Vision / Fog of War Spotlight
+        this.renderVision();
+    }
+
+    /**
+     * Render the vision spotlight around the local player
+     */
+    private renderVision(): void {
+        const { width, height } = this.camera.viewport;
+        const px = this.playerPos.x - this.camera.x;
+        const py = this.playerPos.y - this.camera.y;
+        const radius = GameConfig.VISION_RADIUS;
+
+        this.ctx.save();
+
+        // 1. Draw solid darkness outside the vision circle
+        // We use a rect with        // 1. Draw solid darkness outside the vision circle
+        this.ctx.beginPath();
+        this.ctx.rect(0, 0, width, height);
+        this.ctx.arc(px, py, radius, 0, Math.PI * 2, true);
+        this.ctx.fillStyle = 'rgba(2, 6, 23, 1)'; // Solid dark blue (100% opaque)
+        this.ctx.fill();
+
+        // 2. Add a soft gradient falloff to the vision edge
+        const gradient = this.ctx.createRadialGradient(px, py, radius * 0.4, px, py, radius);
+        gradient.addColorStop(0, 'rgba(2, 6, 23, 0)');      // Center clear
+        gradient.addColorStop(1, 'rgba(2, 6, 23, 1)');      // Edge solid blue
+
+        this.ctx.fillStyle = gradient;
+        this.ctx.beginPath();
+        this.ctx.arc(px, py, radius + 1, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        this.ctx.restore();
     }
 
     /**
@@ -356,9 +412,7 @@ export class GameEngine {
      * Stop the game loop and cleanup
      */
     destroy(): void {
-        if (this.animationFrameId) {
-            cancelAnimationFrame(this.animationFrameId);
-        }
+        this.stop();
         inputHandler.detach();
         this.enemyInstances.clear();
     }

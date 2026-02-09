@@ -14,6 +14,7 @@ export class GameConfig {
     static readonly PLAYER_SIZE = 64;
     static readonly PLAYER_SPEED_BLOCKS_PER_SEC = 3.5;
     static readonly PLAYER_BASE_SPEED = GameConfig.GRID_SIZE * GameConfig.PLAYER_SPEED_BLOCKS_PER_SEC;
+    static readonly VISION_RADIUS = 100 * GameConfig.GRID_SIZE;
 
     // Enemy Sizes
     static readonly ENEMY_SIZE_NORMAL = 64;
