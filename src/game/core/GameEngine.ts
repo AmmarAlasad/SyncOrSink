@@ -81,23 +81,41 @@ export class GameEngine {
      * Start the game loop
      */
     start(): void {
-        this.stop(); // Ensure no multiple loops
+        this.stop();
 
-        // Logic Update Loop (runs even when minimized)
-        let lastUpdateTime = performance.now();
-        this.updateIntervalId = setInterval(() => {
-            const now = performance.now();
-            const deltaTime = Math.min((now - lastUpdateTime) / 1000, 0.1);
-            lastUpdateTime = now;
-            this.update(deltaTime, now);
-        }, 1000 / 60);
+        const loop = (timestamp: number) => {
+            if (!this.lastFrameTime) {
+                this.lastFrameTime = timestamp;
+                this.animationFrameId = requestAnimationFrame(loop);
+                return;
+            }
+            const deltaTime = Math.min((timestamp - this.lastFrameTime) / 1000, 0.1);
+            this.lastFrameTime = timestamp;
 
-        // Rendering Loop (pauses when minimized to save resources)
-        const render = (timestamp: number) => {
+            this.update(deltaTime, timestamp);
             this.render(timestamp);
-            this.animationFrameId = requestAnimationFrame(render);
+
+            this.animationFrameId = requestAnimationFrame(loop);
         };
-        this.animationFrameId = requestAnimationFrame(render);
+
+        const startBackgroundLoop = () => {
+            if (this.updateIntervalId) clearInterval(this.updateIntervalId);
+            let lastUpdateTime = performance.now();
+            this.updateIntervalId = setInterval(() => {
+                const now = performance.now();
+                const deltaTime = Math.min((now - lastUpdateTime) / 1000, 0.1);
+                lastUpdateTime = now;
+                this.update(deltaTime, now);
+            }, 1000 / 60); // Use 60fps for background too if we want speed accuracy
+        };
+
+        // Simplified visibility handling
+        this.lastFrameTime = 0;
+        if (document.hidden) {
+            startBackgroundLoop();
+        } else {
+            this.animationFrameId = requestAnimationFrame(loop);
+        }
     }
 
     /**
@@ -251,7 +269,19 @@ export class GameEngine {
     /**
      * Render all players
      */
+    private playerInstances = new Map<string, Player>();
+
+    /**
+     * Render all players
+     */
     private renderPlayers(players: PlayerType[], localPlayerId: string, timestamp: number): void {
+        const currentIds = new Set(players.map(p => p.id));
+
+        // Cleanup missing players
+        for (const id of this.playerInstances.keys()) {
+            if (!currentIds.has(id)) this.playerInstances.delete(id);
+        }
+
         players.forEach(p => {
             const isMe = p.id === localPlayerId;
             let worldX, worldY;
@@ -267,7 +297,8 @@ export class GameEngine {
                     this.remoteDisplayPos[p.id] = { x: targetX, y: targetY };
                 }
 
-                const lerpAmount = 1 - Math.exp(-15 * 0.016); // Approximate deltaTime
+                // Smooth interpolation for remote players
+                const lerpAmount = 0.2; // Optimized for 60fps
                 this.remoteDisplayPos[p.id].x += (targetX - this.remoteDisplayPos[p.id].x) * lerpAmount;
                 this.remoteDisplayPos[p.id].y += (targetY - this.remoteDisplayPos[p.id].y) * lerpAmount;
 
@@ -275,7 +306,18 @@ export class GameEngine {
                 worldY = this.remoteDisplayPos[p.id].y;
             }
 
-            const player = new Player({ ...p, position: { x: worldX, y: worldY } });
+            // Update or create player instance
+            if (!this.playerInstances.has(p.id)) {
+                this.playerInstances.set(p.id, new Player({ ...p, position: { x: worldX, y: worldY } }));
+            } else {
+                const instance = this.playerInstances.get(p.id)!;
+                // We need to manually update the internal data since Player class wraps it
+                // This assumes Player class has a way to update its data or we recreate it if data changes significantly
+                // ideally Player should have an update method. For now, to be safe with existing class structure:
+                instance['data'] = { ...p, position: { x: worldX, y: worldY } };
+            }
+
+            const player = this.playerInstances.get(p.id)!;
             player.draw(this.ctx, this.camera.x, this.camera.y, inputHandler.getMousePos(), isMe);
         });
     }
@@ -307,6 +349,7 @@ export class GameEngine {
     private updateEnemyAI(deltaTime: number, timestamp: number, lobby: any, state: any): void {
         const enemiesToRemove: string[] = [];
         const newEnemies: EnemyType[] = [];
+        const enemiesToUpdate: Record<string, Partial<EnemyType>> = {};
 
         // Throttle enemy updates to 30fps to save bandwidth
         const shouldBroadcast = timestamp - this.lastEnemySync > GameConfig.NETWORK_UPDATE_INTERVAL;
@@ -320,40 +363,27 @@ export class GameEngine {
             const initialState = enemyData.state;
 
             // Use the centralized AI system
-            const result = EnemyAI.update(enemyData, {
+            EnemyAI.update(enemyData, {
                 deltaTime,
                 players: lobby.players,
                 doors: lobby.doors,
                 allEnemies: lobby.enemies,
                 broadcast: (msg) => {
                     // Always broadcast critical events (alarms, state changes)
-                    // Throttle movement updates unless state changed
                     if (msg.type !== 'ENEMY_MOVE' || shouldBroadcast || msg.state !== initialState) {
                         this.network.broadcast(msg);
                     }
                 },
                 updateEnemy: (id, updates) => {
-                    // Update local state immediately for smoother frame-to-frame logic
-                    const enemy = lobby.enemies.find((e: EnemyType) => e.id === id);
-                    if (enemy) {
-                        Object.assign(enemy, updates);
-                    }
+                    // Batch updates for store
+                    if (!enemiesToUpdate[id]) enemiesToUpdate[id] = {};
+                    Object.assign(enemiesToUpdate[id], updates);
 
-                    // Sync to store
-                    state.updateEnemyPosition(id,
-                        updates.position?.x ?? (enemy?.position.x || 0),
-                        updates.position?.y ?? (enemy?.position.y || 0),
-                        updates.state ?? (enemy?.state || 'patrolling'),
-                        updates.targetPlayerId,
-                        updates.targetPosition,
-                        updates.investigationTimer
-                    );
+                    // Update immediate object for subsequent AI/render logic in this frame
+                    const enemy = lobby.enemies.find((e: EnemyType) => e.id === id);
+                    if (enemy) Object.assign(enemy, updates);
                 }
             });
-
-            if ((result as any).remove) {
-                enemiesToRemove.push(enemyData.id);
-            }
 
             // Collision detection
             const collisions = CollisionSystem.checkEnemyCollisions(enemyData, lobby.players);
@@ -367,15 +397,13 @@ export class GameEngine {
 
                     // Guard returns to patrol after freezing player
                     if (enemyData.type === 'guard') {
-                        state.updateEnemyPosition(
-                            enemyData.id,
-                            enemyData.position.x,
-                            enemyData.position.y,
-                            'patrolling',
-                            undefined,
-                            undefined,
-                            0
-                        );
+                        enemiesToUpdate[enemyData.id] = {
+                            ...enemiesToUpdate[enemyData.id],
+                            state: 'patrolling',
+                            targetPlayerId: undefined,
+                            targetPosition: undefined,
+                            investigationTimer: 0
+                        };
                         this.network.broadcast({
                             type: 'ENEMY_MOVE',
                             enemyId: enemyData.id,
@@ -390,6 +418,13 @@ export class GameEngine {
                 }
             });
         });
+
+        // Apply all batched updates at once to prevent lag
+        if (Object.keys(enemiesToUpdate).length > 0) {
+            state.lobby.enemies = lobby.enemies.map((e: EnemyType) =>
+                enemiesToUpdate[e.id] ? { ...e, ...enemiesToUpdate[e.id] } : e
+            );
+        }
 
         // Check player-to-player collisions for unfreezing
         const playersToUnfreeze = CollisionSystem.checkPlayerUnfreezeCollisions(lobby.players);

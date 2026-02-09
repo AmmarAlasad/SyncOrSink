@@ -22,14 +22,14 @@ export class GameConfig {
 
     // Enemy Speeds (blocks per second)
     static readonly ENEMY_SPEED = {
-        GUARD_PATROL: 1.5,
-        GUARD_CHASE: 2.5,
-        GUARD_INVESTIGATING: 2.0,
-        DOG_PATROL: 2.0,
-        DOG_CHASE: 3.5,
+        GUARD_PATROL: 3.0,
+        GUARD_CHASE: 3.0,
+        GUARD_INVESTIGATING: 3.0,
+        DOG_PATROL: 3.0,
+        DOG_CHASE: 3.6,
         DOG_INVESTIGATING: 3.0,
-        DRONE_PATROL: 2.5,
-        DRONE_CHASE: 3.0, // Increased so it can follow
+        DRONE_PATROL: 3.0,
+        DRONE_CHASE: 3.5,
         DRONE_INVESTIGATING: 3.0,
         CAMERA_PATROL: 0,
         CAMERA_CHASE: 0,
@@ -57,6 +57,7 @@ export class GameConfig {
 
     // Animation Configuration
     static readonly ANIMATION_FRAME_DURATION = 200; // ms
+    static readonly ALARM_COOLDOWN = 3000; // ms
 
     // Player Colors
     static readonly PLAYER_COLORS = {

@@ -42,20 +42,18 @@ export class EnemyAI {
 
                 if (enemy.type === 'drone' || enemy.type === 'camera') {
                     // Trigger Alarm to call a guard
-                    if (context.doors.length > 0) {
+                    const now = context.deltaTime; // Not reliable, use Date.now() from context or pass it in
+                    const currentTime = Date.now();
+                    const lastTrigger = enemy.lastAlarmTriggered || 0;
+
+                    if (context.doors.length > 0 && (currentTime - lastTrigger > GameConfig.ALARM_COOLDOWN)) {
                         const alarmResult = AlarmSystem.triggerAlarm(detected.player, context.doors, context.allEnemies);
 
-                        // Notify everyone of alarm location
-                        // Drones update alarm info constantly as they follow
-                        context.broadcast({ type: 'ENEMY_ALARM', position: alarmResult.alarmPosition });
+                        // Update cooldown
+                        context.updateEnemy(enemy.id, { lastAlarmTriggered: currentTime });
 
-                        // Handle Spawning New Guard if needed
-                        if (alarmResult.spawnedGuard) {
-                            // This needs to be handled by GameEngine adding it to the store
-                            // For now we will just assume GameEngine handles spawn events via a separate mechanism
-                            // or we return "spawn request" from this function.
-                            // *Refactor Note*: Spawning is a side effect. We'll handle it by returning events.
-                        }
+                        // Notify everyone of alarm location
+                        context.broadcast({ type: 'ENEMY_ALARM', position: alarmResult.alarmPosition });
 
                         // Handle Existing Guard Response
                         if (alarmResult.respondingGuard) {
@@ -215,15 +213,28 @@ export class EnemyAI {
         }
 
         // 3. Sync Phase
-        if (nextX !== enemy.position.x || nextY !== enemy.position.y || shouldSync || investigationTimer !== enemy.investigationTimer) {
-            context.updateEnemy(enemy.id, {
-                position: { x: nextX, y: nextY },
-                state: nextState,
-                targetPlayerId: targetId,
-                targetPosition: targetPos,
-                investigationTimer
-            });
+        const now = Date.now();
+        const timeSinceLastSync = now - (enemy.lastNetworkSync || 0);
+        const SYNC_INTERVAL = 33; // 30 updates per second
 
+        // Always update local store state so movement is smooth and full-speed
+        context.updateEnemy(enemy.id, {
+            position: { x: nextX, y: nextY },
+            state: nextState,
+            targetPlayerId: targetId,
+            targetPosition: targetPos,
+            investigationTimer
+        });
+
+        // Throttle network broadcast to save bandwidth
+        const needsBroadcast =
+            shouldSync ||
+            nextState !== enemy.state ||
+            targetId !== enemy.targetPlayerId ||
+            timeSinceLastSync > SYNC_INTERVAL;
+
+        if (needsBroadcast) {
+            context.updateEnemy(enemy.id, { lastNetworkSync: now });
             context.broadcast({
                 type: 'ENEMY_MOVE',
                 enemyId: enemy.id,

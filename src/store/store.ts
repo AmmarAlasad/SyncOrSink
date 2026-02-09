@@ -28,6 +28,8 @@ export type Enemy = {
     investigationTimer?: number;
     spawnDoorId?: string;
     direction?: string; // For cameras: 'Left' | 'Right'
+    lastAlarmTriggered?: number;
+    lastNetworkSync?: number;
 };
 
 export type Door = {
